@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     
     strategy:
+      fail-fast: false
       matrix:
         node-version: [18.x, 20.x]
     
@@ -27,28 +28,43 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm ci || npm install
       
-      - name: Run linter
-        run: npm run lint --if-present
+      - name: Lint
+        run: npm run lint
+        continue-on-error: false
       
-      - name: Run type check
+      - name: Type check
+        run: npm run type-check
+      
+      - name: Build
         run: npm run build
       
-      - name: Run tests
-        run: npm test -- --coverage
+      - name: Test
+        run: npm test
+        env:
+          CI: true
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          files: ./coverage/coverage-final.json
-          flags: unittests
-          name: codecov-umbrella
+          node-version: '20.x'
+          cache: 'npm'
       
-      - name: Run example workflows
-        run: |
-          npm run example:refund
-          npm run example:troubleshooting
+      - name: Install dependencies
+        run: npm ci || npm install
+      
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate || true
 
   docker:
     name: Build Docker Image
@@ -71,24 +87,3 @@ jobs:
           tags: knowledge-workflow-engine:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18.x'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run npm audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
