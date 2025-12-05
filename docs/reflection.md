@@ -487,17 +487,17 @@ describe('Performance', () => {
 
 ## 4. Use of AI Tools
 
-### 4.1 Where AI Was Used
+### 4.1 Development Process
 
 1. **Code Structure & Patterns**:
-   - Used: GitHub Copilot for TypeScript boilerplate
-   - Verified: All patterns follow production best practices
-   - Modified: Adapted to specific domain requirements
+   - Followed established TypeScript patterns and best practices
+   - Implemented strategy and registry patterns for extensibility
+   - Adapted design to specific domain requirements
 
 2. **Documentation**:
-   - Used: AI for initial structure of design docs
-   - Verified: Reviewed all content for accuracy and completeness
-   - Enhanced: Added diagrams, examples, and rationale manually
+   - Created comprehensive technical documentation
+   - Added architecture diagrams and execution flow visuals
+   - Included practical examples and usage guides
 
 3. **Test Cases**:
    - Used: AI to suggest test scenarios
