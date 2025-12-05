@@ -1,0 +1,139 @@
+{
+  "id": "wf_troubleshooting_v1",
+  "organizationId": "org_demo",
+  "name": "Technical Troubleshooting Assistant",
+  "description": "Multi-step troubleshooting workflow with parallel knowledge retrieval and escalation logic",
+  "version": 1,
+  "versionLabel": "v1.0.0",
+  "isLatest": true,
+  "status": "active",
+  "entryStepId": "s01_retrieve_docs",
+  "maxSteps": 15,
+  "maxExecutionTimeMs": 45000,
+  "tags": ["troubleshooting", "technical-support", "multi-step", "escalation"],
+  
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "issue": {
+        "type": "string",
+        "description": "Description of the technical issue"
+      },
+      "product": {
+        "type": "string",
+        "description": "Product name or ID"
+      },
+      "severity": {
+        "type": "string",
+        "enum": ["low", "medium", "high", "critical"],
+        "description": "Issue severity level"
+      }
+    },
+    "required": ["issue", "product"]
+  },
+  
+  "steps": [
+    {
+      "id": "s01_retrieve_docs",
+      "type": "RAG",
+      "label": "Retrieve Troubleshooting Docs",
+      "description": "Search technical documentation for relevant troubleshooting steps",
+      "params": {
+        "collectionId": "coll_tech_docs",
+        "query": "{{input.product}} {{input.issue}} troubleshooting steps",
+        "topK": 5,
+        "minScore": 0.65,
+        "filters": {
+          "product": "{{input.product}}",
+          "category": "troubleshooting"
+        }
+      },
+      "nextStepId": "s02_check_severity",
+      "onFailure": "s06_escalate",
+      "retry": {
+        "maxAttempts": 2,
+        "backoffMs": 1000
+      },
+      "timeoutMs": 8000
+    },
+    {
+      "id": "s02_check_severity",
+      "type": "CONDITION",
+      "label": "Check Issue Severity",
+      "description": "Route based on severity - critical issues get immediate escalation",
+      "params": {
+        "expression": "input.severity == 'critical' || input.severity == 'high'",
+        "onTrue": "s06_escalate",
+        "onFalse": "s03_generate_steps"
+      }
+    },
+    {
+      "id": "s03_generate_steps",
+      "type": "LLM",
+      "label": "Generate Troubleshooting Steps",
+      "description": "Create step-by-step troubleshooting instructions",
+      "params": {
+        "model": "gpt-4",
+        "systemPrompt": "You are a technical support expert. Create clear, numbered troubleshooting steps based on documentation. Be precise and actionable.",
+        "prompt": "Issue: {{input.issue}}\nProduct: {{input.product}}\n\nRelevant Documentation:\n{{steps.s01_retrieve_docs.output.results[0].text}}\n\n{{steps.s01_retrieve_docs.output.results[1].text}}\n\nCreate a numbered list of troubleshooting steps to resolve this issue. Include:\n1. Diagnostic steps\n2. Potential solutions\n3. Expected outcomes\n4. When to escalate\n\nBe concise but complete.",
+        "temperature": 0.2,
+        "maxTokens": 800
+      },
+      "nextStepId": "s04_check_resolution",
+      "onFailure": "s06_escalate",
+      "retry": {
+        "maxAttempts": 2,
+        "backoffMs": 1500
+      }
+    },
+    {
+      "id": "s04_check_resolution",
+      "type": "CONDITION",
+      "label": "Check if Resolved",
+      "description": "Check if we found actionable troubleshooting steps",
+      "params": {
+        "expression": "steps.s01_retrieve_docs.output.count > 0",
+        "onTrue": "s05_format_response",
+        "onFalse": "s06_escalate"
+      }
+    },
+    {
+      "id": "s05_format_response",
+      "type": "LLM",
+      "label": "Format Support Response",
+      "description": "Create final formatted response with troubleshooting steps",
+      "params": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "Format technical support responses to be customer-friendly while maintaining technical accuracy.",
+        "prompt": "Troubleshooting Steps:\n{{steps.s03_generate_steps.output.text}}\n\nFormat this as a support ticket response:\n- Start with empathy\n- Present steps clearly\n- Include estimated time\n- Provide escalation path if steps don't work\n- Add support contact info\n\nMake it professional and helpful.",
+        "temperature": 0.5,
+        "maxTokens": 1000
+      }
+    },
+    {
+      "id": "s06_escalate",
+      "type": "LLM",
+      "label": "Generate Escalation Response",
+      "description": "Create escalation message for complex or critical issues",
+      "params": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You handle escalations for technical support. Create professional escalation messages.",
+        "prompt": "Issue requires escalation:\n- Issue: {{input.issue}}\n- Product: {{input.product}}\n- Severity: {{input.severity}}\n\nCreate an escalation response that:\n1. Acknowledges the issue\n2. Explains why it's being escalated\n3. Sets expectations (e.g., 'specialist will contact within 2 hours for critical issues')\n4. Provides ticket reference: ESC-{{context.executionId}}\n5. Includes emergency contact for critical issues\n\nBe reassuring and professional.",
+        "temperature": 0.4,
+        "maxTokens": 400
+      },
+      "metadata": {
+        "escalated": true,
+        "notify": "support-team@example.com"
+      }
+    }
+  ],
+  
+  "metadata": {
+    "author": "Rajan Mishra",
+    "category": "technical-support",
+    "complexity": "advanced",
+    "requiresApproval": false,
+    "estimatedCost": "medium"
+  }
+}

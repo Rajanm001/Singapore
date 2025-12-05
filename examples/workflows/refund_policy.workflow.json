@@ -1,0 +1,130 @@
+{
+  "id": "wf_refund_policy_v1",
+  "organizationId": "org_demo",
+  "name": "Refund Policy Assistant",
+  "description": "Answers customer questions about refund policies using RAG and LLM with confidence-based routing",
+  "version": 1,
+  "versionLabel": "v1.0.0",
+  "isLatest": true,
+  "status": "active",
+  "entryStepId": "s01_retrieve",
+  "maxSteps": 10,
+  "maxExecutionTimeMs": 30000,
+  "tags": ["refund", "customer-service", "rag", "conditional"],
+  
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "description": "Customer's question about refund policy"
+      }
+    },
+    "required": ["question"]
+  },
+  
+  "steps": [
+    {
+      "id": "s01_retrieve",
+      "type": "RAG",
+      "label": "Retrieve Policy Documents",
+      "description": "Search the policies knowledge collection for relevant refund information",
+      "params": {
+        "collectionId": "coll_policies",
+        "query": "{{input.question}}",
+        "topK": 3,
+        "minScore": 0.7,
+        "filters": {
+          "category": "refund"
+        }
+      },
+      "nextStepId": "s02_generate_answer",
+      "onFailure": "s05_fallback",
+      "retry": {
+        "maxAttempts": 2,
+        "backoffMs": 1000
+      },
+      "timeoutMs": 5000,
+      "metadata": {
+        "description": "Retrieves top 3 relevant policy chunks with minimum 70% similarity"
+      }
+    },
+    {
+      "id": "s02_generate_answer",
+      "type": "LLM",
+      "label": "Generate Answer from Context",
+      "description": "Use LLM to generate a helpful answer based on retrieved policy documents",
+      "params": {
+        "model": "gpt-4",
+        "systemPrompt": "You are a helpful customer service assistant. Answer the customer's question based solely on the provided policy documents. Be clear, concise, and empathetic.",
+        "prompt": "Customer Question: {{input.question}}\n\nRelevant Policy Information:\n{{steps.s01_retrieve.output.results[0].text}}\n\n{{steps.s01_retrieve.output.results[1].text}}\n\n{{steps.s01_retrieve.output.results[2].text}}\n\nPlease provide a clear answer to the customer's question based on the policy information above. If the information is insufficient, say so.",
+        "temperature": 0.3,
+        "maxTokens": 500
+      },
+      "nextStepId": "s03_check_confidence",
+      "onFailure": "s05_fallback",
+      "retry": {
+        "maxAttempts": 3,
+        "backoffMs": 2000
+      },
+      "timeoutMs": 10000,
+      "metadata": {
+        "description": "Generates answer with low temperature for consistency"
+      }
+    },
+    {
+      "id": "s03_check_confidence",
+      "type": "CONDITION",
+      "label": "Check Answer Confidence",
+      "description": "Evaluate if we have sufficient information to answer confidently",
+      "params": {
+        "expression": "steps.s01_retrieve.output.count > 0 && steps.s01_retrieve.output.results[0].score > 0.75",
+        "onTrue": "s04_final_answer",
+        "onFalse": "s05_fallback"
+      },
+      "metadata": {
+        "description": "Routes to final answer if we found relevant docs with high confidence"
+      }
+    },
+    {
+      "id": "s04_final_answer",
+      "type": "LLM",
+      "label": "Format Final Answer",
+      "description": "Polish the answer and add helpful next steps",
+      "params": {
+        "model": "gpt-4",
+        "systemPrompt": "You are formatting a final customer service response. Make it friendly and actionable.",
+        "prompt": "Here is the answer to provide to the customer:\n\n{{steps.s02_generate_answer.output.text}}\n\nPlease format this as a final response with:\n1. A clear answer\n2. Any relevant caveats or conditions\n3. Next steps (e.g., how to contact support if needed)\n\nKeep it concise and customer-friendly.",
+        "temperature": 0.5,
+        "maxTokens": 600
+      },
+      "onFailure": "s05_fallback",
+      "metadata": {
+        "description": "Final polishing step for high-confidence answers"
+      }
+    },
+    {
+      "id": "s05_fallback",
+      "type": "LLM",
+      "label": "Fallback Response",
+      "description": "Provide a helpful fallback when we lack sufficient information",
+      "params": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are a customer service assistant. When you don't have specific information, provide a helpful response that directs the customer to the right resources.",
+        "prompt": "The customer asked: {{input.question}}\n\nWe don't have enough specific information in our knowledge base to answer this question confidently.\n\nProvide a helpful response that:\n1. Acknowledges their question\n2. Apologizes for not having complete information\n3. Directs them to contact support@example.com with their order number\n4. Assures them they'll get help quickly\n\nBe warm and helpful.",
+        "temperature": 0.7,
+        "maxTokens": 300
+      },
+      "metadata": {
+        "description": "Graceful fallback for low-confidence scenarios"
+      }
+    }
+  ],
+  
+  "metadata": {
+    "author": "Rajan Mishra",
+    "category": "customer-service",
+    "complexity": "intermediate",
+    "estimatedCost": "low"
+  }
+}

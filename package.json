@@ -1,0 +1,58 @@
+{
+  "name": "knowledge-workflow-engine",
+  "version": "1.0.0",
+  "description": "Multi-tenant workflow and knowledge orchestration for building AI assistants",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "test:watch": "vitest --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "validate": "npm run lint && npm run type-check && npm run test",
+    "docker:build": "docker build -t knowledge-workflow-engine .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "example:refund": "tsx scripts/runExample.ts refund_policy",
+    "example:troubleshooting": "tsx scripts/runExample.ts troubleshooting",
+    "validate:workflows": "tsx scripts/validateWorkflows.ts"
+  },
+  "keywords": [
+    "workflow-engine",
+    "knowledge-base",
+    "rag",
+    "llm",
+    "ai-orchestration",
+    "multi-tenant",
+    "digital-assistant"
+  ],
+  "author": "Rajan Mishra",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.22.4",
+    "nanoid": "^5.0.4",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0",
+    "@vitest/coverage-v8": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

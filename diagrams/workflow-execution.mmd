@@ -1,0 +1,144 @@
+%% Workflow Execution Flow
+%% Detailed sequence diagram for workflow execution process
+
+sequenceDiagram
+    participant Client
+    participant API
+    participant Executor as Workflow Executor
+    participant Validator
+    participant Registry as Step Registry
+    participant Handler as Step Handler
+    participant Template as Template Engine
+    participant Service as External Service
+    participant DB as Database
+
+    Client->>API: POST /workflows/execute
+    activate API
+    
+    API->>Executor: execute(workflow, orgId, input)
+    activate Executor
+    
+    %% Validation Phase
+    Executor->>Validator: validate(workflow)
+    activate Validator
+    Validator->>Validator: Check structure
+    Validator->>Validator: Detect circular refs
+    Validator->>Validator: Find unreachable steps
+    alt Validation Fails
+        Validator-->>Executor: ValidationError
+        Executor-->>API: Error Response
+        API-->>Client: 400 Bad Request
+    else Validation Success
+        Validator-->>Executor: Valid
+        deactivate Validator
+    end
+
+    %% Initialization
+    Executor->>DB: Create WorkflowExecution
+    DB-->>Executor: executionId
+    
+    Executor->>Executor: Initialize context
+    Note over Executor: context = {<br/>input,<br/>steps: {},<br/>organizationId<br/>}
+
+    %% Step Execution Loop
+    loop For each step
+        Executor->>Executor: Get next step
+        
+        %% Retrieve Handler
+        Executor->>Registry: getHandler(stepType)
+        Registry-->>Executor: StepHandler instance
+        
+        %% Validate Parameters
+        Executor->>Handler: validateParams(params)
+        alt Invalid Params
+            Handler-->>Executor: ValidationError
+            Executor->>DB: Update execution (failed)
+            Executor-->>API: Error Response
+            API-->>Client: 500 Internal Error
+        else Valid Params
+            Handler-->>Executor: OK
+        end
+
+        %% Resolve Templates
+        Executor->>Template: resolveTemplateObject(params, context)
+        activate Template
+        Template->>Template: Replace {{variables}}
+        Template-->>Executor: Resolved params
+        deactivate Template
+
+        %% Execute Step
+        Executor->>Handler: execute(resolvedParams, context)
+        activate Handler
+        
+        alt Step Type: RAG
+            Handler->>Template: resolveTemplate(query)
+            Template-->>Handler: Resolved query
+            Handler->>Service: search(query, collectionId, topK)
+            activate Service
+            Service->>Service: Vector similarity search
+            Service-->>Handler: SearchResults
+            deactivate Service
+        else Step Type: LLM
+            Handler->>Template: resolveTemplate(prompt)
+            Template-->>Handler: Resolved prompt
+            Handler->>Service: complete(prompt, model, temp)
+            activate Service
+            Service->>Service: Call LLM API
+            Service-->>Handler: LLM Response
+            deactivate Service
+        else Step Type: CONDITION
+            Handler->>Template: resolveTemplate(expression)
+            Template-->>Handler: Resolved expression
+            Handler->>Handler: evaluateExpression()
+            Handler->>Handler: Determine next step
+        else Step Type: API_CALL
+            Handler->>Template: resolveTemplate(url, headers, body)
+            Template-->>Handler: Resolved values
+            Handler->>Service: fetch(url, options)
+            activate Service
+            Service-->>Handler: HTTP Response
+            deactivate Service
+        end
+
+        alt Step Execution Fails
+            Handler-->>Executor: Failure result
+            Executor->>Executor: Check retry config
+            alt Retries Remaining
+                Executor->>Executor: Wait backoff delay
+                Executor->>Handler: execute (retry)
+            else No Retries Left
+                Executor->>DB: Log step failure
+                Executor->>Executor: Mark execution failed
+            end
+        else Step Success
+            Handler-->>Executor: Success result
+            deactivate Handler
+            
+            %% Update Context
+            Executor->>Executor: context.steps[stepId] = result
+            Executor->>DB: Log step execution
+            
+            %% Determine Next Step
+            alt Condition Step
+                Executor->>Executor: Get next from condition result
+            else Has nextStepId
+                Executor->>Executor: Get step by nextStepId
+            else No Next Step
+                Executor->>Executor: Mark complete
+            end
+        end
+    end
+
+    %% Finalization
+    Executor->>Executor: Calculate metrics
+    Executor->>DB: Update execution (completed)
+    DB-->>Executor: OK
+    
+    Executor-->>API: WorkflowExecution
+    deactivate Executor
+    
+    API-->>Client: 200 OK with execution results
+    deactivate API
+
+    %% Error Handling Note
+    Note over Client,DB: Error handling:<br/>- Retry with exponential backoff<br/>- Timeout protection<br/>- Graceful degradation<br/>- Detailed error logging

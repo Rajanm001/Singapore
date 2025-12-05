@@ -1,0 +1,144 @@
+%% Knowledge & Workflow Engine - System Architecture
+%% High-level component architecture and interactions
+
+graph TB
+    subgraph "Client Layer"
+        API[REST/GraphQL API]
+        CLI[CLI Tool]
+        UI[Web Dashboard]
+    end
+
+    subgraph "Application Layer"
+        WE[Workflow Executor]
+        WV[Workflow Validator]
+        SR[Step Registry]
+        
+        subgraph "Step Handlers"
+            RAG[RAG Handler]
+            LLM[LLM Handler]
+            COND[Condition Handler]
+            API_H[API Call Handler]
+        end
+    end
+
+    subgraph "Service Layer"
+        subgraph "LLM Services"
+            LLM_SVC[LLM Service Interface]
+            MOCK_LLM[Mock LLM]
+            OPENAI[OpenAI Client]
+            ANTHROPIC[Anthropic Client]
+        end
+        
+        subgraph "Retrieval Services"
+            RET_SVC[Retrieval Service Interface]
+            MEM_RET[Memory Retrieval]
+            PINECONE[Pinecone Client]
+            WEAVIATE[Weaviate Client]
+        end
+    end
+
+    subgraph "Core Utilities"
+        TENG[Template Engine]
+        EXPR[Expression Engine]
+        LOG[Logger]
+        ERR[Error Handling]
+    end
+
+    subgraph "Domain Models"
+        ORG[Organization]
+        WF[Workflow]
+        WFS[Workflow Step]
+        WFE[Workflow Execution]
+        DOC[Document/Chunk]
+        KC[Knowledge Collection]
+    end
+
+    subgraph "Data Layer"
+        DB[(PostgreSQL)]
+        VECTOR[(Vector DB)]
+        CACHE[(Redis Cache)]
+    end
+
+    subgraph "External Services"
+        LLM_API[OpenAI/Anthropic API]
+        VECTOR_API[Vector DB API]
+        MONITOR[DataDog/Sentry]
+    end
+
+    %% Connections - Client to Application
+    API --> WE
+    CLI --> WE
+    UI --> API
+
+    %% Connections - Application Internal
+    WE --> WV
+    WE --> SR
+    SR --> RAG
+    SR --> LLM
+    SR --> COND
+    SR --> API_H
+
+    %% Connections - Handlers to Services
+    RAG --> RET_SVC
+    LLM --> LLM_SVC
+    API_H --> LLM_SVC
+
+    %% Connections - Service Implementations
+    LLM_SVC --> MOCK_LLM
+    LLM_SVC --> OPENAI
+    LLM_SVC --> ANTHROPIC
+    RET_SVC --> MEM_RET
+    RET_SVC --> PINECONE
+    RET_SVC --> WEAVIATE
+
+    %% Connections - Utilities
+    WE --> TENG
+    WE --> LOG
+    RAG --> TENG
+    LLM --> TENG
+    COND --> EXPR
+    EXPR --> TENG
+    WE --> ERR
+    RAG --> ERR
+    LLM --> ERR
+
+    %% Connections - Models
+    WE --> WF
+    WE --> WFE
+    WV --> WF
+    WF --> WFS
+    RAG --> KC
+    RAG --> DOC
+    WE --> ORG
+
+    %% Connections - Data Layer
+    WF -.-> DB
+    WFE -.-> DB
+    ORG -.-> DB
+    KC -.-> DB
+    DOC -.-> VECTOR
+    WE -.-> CACHE
+
+    %% Connections - External Services
+    OPENAI --> LLM_API
+    ANTHROPIC --> LLM_API
+    PINECONE --> VECTOR_API
+    WEAVIATE --> VECTOR_API
+    LOG --> MONITOR
+
+    %% Styling
+    classDef clientStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef appStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef serviceStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef utilStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef modelStyle fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef dataStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    classDef externalStyle fill:#e0e0e0,stroke:#424242,stroke-width:2px
+
+    class API,CLI,UI clientStyle
+    class WE,WV,SR,RAG,LLM,COND,API_H appStyle
+    class LLM_SVC,MOCK_LLM,OPENAI,ANTHROPIC,RET_SVC,MEM_RET,PINECONE,WEAVIATE serviceStyle
+    class TENG,EXPR,LOG,ERR utilStyle
+    class ORG,WF,WFS,WFE,DOC,KC modelStyle
+    class DB,VECTOR,CACHE dataStyle
+    class LLM_API,VECTOR_API,MONITOR externalStyle

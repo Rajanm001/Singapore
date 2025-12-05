@@ -1,0 +1,169 @@
+%% Data Model - Entity Relationship Diagram
+%% Core domain entities and their relationships
+
+erDiagram
+    Organization ||--o{ SubOrganization : contains
+    Organization ||--o{ Workflow : owns
+    Organization ||--o{ KnowledgeCollection : owns
+    Organization ||--o{ WorkflowExecution : executes
+    
+    SubOrganization ||--o{ Workflow : owns
+    SubOrganization ||--o{ KnowledgeCollection : owns
+    SubOrganization ||--o{ WorkflowExecution : executes
+    
+    Workflow ||--|{ WorkflowStep : contains
+    Workflow ||--o{ WorkflowExecution : instances
+    Workflow ||--o| Workflow : "previous version"
+    
+    WorkflowExecution ||--|{ StepExecution : contains
+    WorkflowExecution ||--|{ ExecutionLog : logs
+    
+    KnowledgeCollection ||--o{ Document : contains
+    Document ||--|{ DocumentChunk : "split into"
+    
+    WorkflowStep }o--|| StepType : "is of type"
+    StepExecution }o--|| WorkflowStep : references
+
+    Organization {
+        string id PK
+        string name
+        string tier
+        json settings
+        json features
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    SubOrganization {
+        string id PK
+        string organizationId FK
+        string name
+        json settings
+        string status
+        datetime createdAt
+    }
+
+    Workflow {
+        string id PK
+        string organizationId FK
+        string subOrganizationId FK
+        string name
+        string description
+        int version
+        string versionLabel
+        boolean isLatest
+        string parentVersionId FK
+        string entryStepId
+        json inputSchema
+        json outputSchema
+        json metadata
+        string[] tags
+        int maxExecutionTimeMs
+        int maxSteps
+        string status
+        datetime createdAt
+        datetime updatedAt
+        string createdBy
+        json stats
+    }
+
+    WorkflowStep {
+        string id PK
+        string type
+        string label
+        string description
+        json params
+        string nextStepId
+        string onSuccess
+        string onFailure
+        json retryConfig
+        int timeoutMs
+        json metadata
+    }
+
+    StepType {
+        string name PK "RAG, LLM, CONDITION, API_CALL"
+        string description
+        json paramSchema
+    }
+
+    WorkflowExecution {
+        string id PK
+        string workflowId FK
+        int workflowVersion
+        string organizationId FK
+        string subOrganizationId FK
+        json input
+        json output
+        string status
+        datetime startTime
+        datetime endTime
+        int durationMs
+        json metrics
+        json context
+        string triggeredBy
+    }
+
+    StepExecution {
+        string id PK
+        string executionId FK
+        string stepId
+        string type
+        json params
+        json output
+        string status
+        datetime startTime
+        datetime endTime
+        int durationMs
+        string error
+        int attemptNumber
+        string nextStepId
+    }
+
+    ExecutionLog {
+        string id PK
+        string executionId FK
+        string level
+        string message
+        json data
+        datetime timestamp
+    }
+
+    KnowledgeCollection {
+        string id PK
+        string organizationId FK
+        string subOrganizationId FK
+        string name
+        string description
+        json embeddingConfig
+        json metadata
+        string status
+        json stats
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Document {
+        string id PK
+        string collectionId FK
+        string title
+        string content
+        string contentType
+        string sourceUrl
+        json metadata
+        string status
+        int chunkCount
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    DocumentChunk {
+        string id PK
+        string documentId FK
+        string collectionId FK
+        int chunkIndex
+        string text
+        float[] embedding
+        json metadata
+        datetime createdAt
+    }
