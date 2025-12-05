@@ -7,15 +7,27 @@ This guide shows how to extend the Knowledge & Workflow Engine by adding new ste
 
 ---
 
-## Adding New Step Types
+## How to Add a New Step Type
 
-The engine uses a plugin architecture that makes adding new step types straightforward. You don't need to modify the core execution engine - just implement a handler and register it.
+The workflow engine uses a plugin architecture that makes adding custom step types straightforward. You implement a handler class, register it with the global registry, and immediately use it in your workflow JSON configurations. No modifications to the core execution engine are required.
 
-### Example: Adding a WEBHOOK Step
+### Overview of the Process
 
-Let's add a step type that sends HTTP webhooks to external systems.
+1. **Define the parameter schema** using Zod for type-safe validation
+2. **Create a handler class** extending `BaseStepHandler`
+3. **Implement the `execute()` method** with your custom logic
+4. **Register the handler** with the global step registry
+5. **Use the step type** in workflow JSON configurations
+
+The step registry handles dispatching incoming workflow steps to your handler, and the executor manages context, retries, timeouts, and error handling automatically.
+
+### Example: Adding a WEBHOOK Step Type
+
+Let's walk through adding a step type that sends HTTP webhooks to external APIs. This demonstrates template variable resolution, error handling, and schema validation.
 
 #### Step 1: Define Parameter Schema
+
+Create a Zod schema for the step's parameters. This ensures type safety and validates workflow configurations at runtime:
 
 ```typescript
 // src/workflows/handlers/webhookStepHandler.ts
@@ -28,13 +40,14 @@ export const WebhookStepParamsSchema = z.object({
   headers: z.record(z.string()).optional(),
   body: z.record(z.unknown()).optional(),
   timeout: z.number().optional(),
-  retryOnFailure: z.boolean().optional(),
 });
 
 export type WebhookStepParams = z.infer<typeof WebhookStepParamsSchema>;
 ```
 
-#### Step 2: Implement Handler
+#### Step 2: Implement the Handler Class
+
+Extend `BaseStepHandler` and implement the `execute()` method. Use the template engine to resolve variables like `{{input.userId}}` or `{{steps.previous.output.data}}`:
 
 ```typescript
 import { BaseStepHandler } from './baseStepHandler.ts';
@@ -52,10 +65,10 @@ export class WebhookStepHandler extends BaseStepHandler {
     params: Record<string, unknown>,
     context: StepExecutionContext
   ): Promise<StepResult> {
-    // Validate parameters
+    // Validate and parse parameters
     const validatedParams = WebhookStepParamsSchema.parse(params);
 
-    // Resolve template variables
+    // Resolve template variables (e.g., {{input.url}}, {{steps.s01.output.data}})
     const resolved = await resolveTemplateObject(
       validatedParams,
       context.templateContext
@@ -80,22 +93,11 @@ export class WebhookStepHandler extends BaseStepHandler {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        this.logger.warn('Webhook failed', {
-          status: response.status,
-          statusText: response.statusText,
-        });
-
         return this.failure(
           `Webhook failed with status ${response.status}`,
-          {
-            status: response.status,
-            statusText: response.statusText,
-            data,
-          }
+          { status: response.status, data }
         );
       }
-
-      this.logger.info('Webhook succeeded', { status: response.status });
 
       return this.success({
         status: response.status,
