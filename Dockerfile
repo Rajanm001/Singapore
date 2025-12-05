@@ -1,33 +1,17 @@
-# Build stage
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY src/ ./src/
-COPY tests/ ./tests/
-
-# Build TypeScript
-RUN npm run build
-
 # Production stage
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files and install production dependencies only
+# Copy package files
 COPY package*.json ./
-RUN npm ci --only=production
 
-# Copy built application
-COPY --from=builder /app/dist ./dist
+# Install all dependencies
+RUN npm ci
+
+# Copy source code
+COPY tsconfig.json ./
+COPY src/ ./src/
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -35,12 +19,12 @@ RUN addgroup -g 1001 -S nodejs && \
 
 USER nodejs
 
-# Expose port (if needed for future HTTP server)
+# Expose port
 EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "console.log('healthy')" || exit 1
 
-# Start application
-CMD ["node", "dist/index.js"]
+# Start application using tsx
+CMD ["npx", "tsx", "src/index.ts"]

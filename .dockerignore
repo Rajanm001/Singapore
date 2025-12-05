@@ -5,14 +5,10 @@ coverage/
 .env
 .env.local
 .DS_Store
-*.md
-!README.md
-!DOCKERFILE.md
 .git/
 .github/
 tests/
 *.test.ts
 *.spec.ts
-tsconfig.json
 .eslintrc.json
 .prettierrc.json
